@@ -43,7 +43,6 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include <stdio.h>
 #include <string.h>
-#include <vector>
 #include <algorithm>
 #include "diagtask.hpp"
 
@@ -125,7 +124,7 @@ void DiagTask::process(void)
   //printf("%d, [%s]\n", len , mCurrentValidInput);
 
     // special characters are only valid, if those are the first character.
-    // if a valid hook is regognised but this hook uses such characters somewhere, those
+    // if a valid hook is recognized but this hook uses such characters somewhere, those
     // characters should be used as normal hook characters and not processed as special value.
     if(mCurrentValidInput[0] == '\0' && privCheckAndProcessSpecialChars(c))
     { break; }
@@ -138,7 +137,8 @@ void DiagTask::process(void)
     mCurrentValidInput[len+1] = '\0';
 
     // if we still have user input, try to call hook
-    std::vector<hookEntry_t> filterredHooks = privFindHooks(mCurrentValidInput);
+    diagtask_vector filterredHooks = privFindHooks(mCurrentValidInput);
+    
     // no hook found
     if(filterredHooks.size() == 0)
     {
@@ -266,9 +266,9 @@ bool DiagTask::readString(char * out, uint16_t maxlen, bool echo)
 
 // diagtask.hpp excludes following files explicitly
 /// @cond
-std::vector<DiagTask::hookEntry_t> DiagTask::privFindHooks( const char * prefix)
+DiagTask::diagtask_vector DiagTask::privFindHooks( const char * prefix)
 {
-  std::vector<hookEntry_t> filterredHooks;
+  diagtask_vector filterredHooks;
   uint16_t lenHook;
   uint16_t lenInput;
   uint16_t lenMin;
@@ -330,6 +330,7 @@ bool DiagTask::privCheckAndProcessSpecialChars(char input)
     {
       /*TODO: not implemented yet*/
       mCurrentValidInput[0] = '\0'; // reset input
+      printf("net yet implemented\n");
       return true;
     }
   #endif //DIAGTASK_ENABLE_SEARCH
@@ -346,7 +347,7 @@ bool DiagTask::processTabCompetion(char input)
       {
       // show all hooks that start with mCurrentValidInput
       // if we only have one hook, then call hook function
-      std::vector<hookEntry_t> filterredHooks = privFindHooks(mCurrentValidInput);
+        diagtask_vector filterredHooks = privFindHooks(mCurrentValidInput);
       if(filterredHooks.size() == 1)
       {
         printf("[%s]\n", filterredHooks[0].name);
@@ -359,7 +360,7 @@ bool DiagTask::processTabCompetion(char input)
 #if ENABLE_ECHO
         printf("\n");
 #endif // #if ENABLE_ECHO
-        for ( auto & h: filterredHooks)
+          for ( const auto & h: filterredHooks)
         {
           printf("[%s]%-20s\t%s\n", mCurrentValidInput, &h.name[len], h.description);
           }
@@ -394,7 +395,7 @@ void DiagTask::privHelp()
   printf("%c - reboot\n", SPECIAL_KEYWORD_REBOOT);
 #endif //DIAGTASK_ENABLE_REBOOT
 
-  for (auto & h : mHooks)
+  for (const auto & h : mHooks)
   {
     printf("%-20s\t%s\n", h.name, h.description);
   }
@@ -408,7 +409,7 @@ void DiagTask::privDisplaySeparator()
 
   printf("\n\n\n\n");
   printf("###########################################\n");
-  printf("### SEPARATOR %5lu ######  %10lu  ###\n", count, mUptime ? mUptime() : 0);
+  printf("### SEPARATOR %5lu ######  %10lu  ###\n", static_cast<long unsigned int>(count), static_cast<long unsigned int>(mUptime ? mUptime() : 0));
   printf("###########################################\n");
   printf("\n\n\n\n");
   count++;

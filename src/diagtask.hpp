@@ -46,6 +46,11 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef _INCLUDED_DIAGTASK_HPP_
 #define _INCLUDED_DIAGTASK_HPP_
 
+#ifndef DIAGTASK_USE_ETL
+  /// @brief diagtask uses STL (std::vector) instead of etl::vector (https://www.etlcpp.com/)
+  #define DIAGTASK_USE_ETL                    0
+#endif
+
 
 // these defines can be defined by user before including diagtask and compiling
 #ifndef DIAGTASK_ENABLE_HELP
@@ -61,14 +66,13 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #ifndef DIAGTASK_ENABLE_SEARCH
   /// @brief Enables support to search through all hook names via '/'
-  #define DIAGTASK_ENABLE_SEARCH              1
+  #define DIAGTASK_ENABLE_SEARCH              0
 #endif
 
 #ifndef DIAGTASK_ENABLE_REBOOT
   /// @brief Enables support to reboot device via character '!'
   #define DIAGTASK_ENABLE_REBOOT              1
 #endif
-
 
 #ifndef DIAGTASK_ENABLE_TAB_COMPLETION
   /// @brief Enables support for tab-competion when entering hook names
@@ -121,11 +125,23 @@ POSSIBILITY OF SUCH DAMAGE.
   #define DIAGTASK_HOOKDESC_LEN           20
 #endif
 
+#ifndef DIAGTASK_MAX_HOOKS
+  /// @brief defines the maximal number of hooks. currently only used when using ETL library
+  #define DIAGTASK_MAX_HOOKS              20
+#endif
+
+#include <stdint.h>
+
+#if DIAGTASK_USE_ETL
+  #include <etl/vector.h>
+#else
 #include <vector>
+#endif
 
 
 class DiagTask
 {
+
   public:
     enum features_t
     {
@@ -147,9 +163,13 @@ class DiagTask
       void(*hook)(const char* input);  // current input line
     };
 
+    #if DIAGTASK_USE_ETL
+    typedef etl::vector<DiagTask::hookEntry_t, DIAGTASK_MAX_HOOKS> diagtask_vector;
+    #else
+    typedef std::vector<DiagTask::hookEntry_t> diagtask_vector;
+    #endif
 
-    //hookEntry_t mHooks[DIAGTASK_MAX_COUNT];
-    std::vector<DiagTask::hookEntry_t> mHooks;
+    diagtask_vector mHooks;
 
     unsigned int mFeatures;
 
@@ -293,7 +313,7 @@ class DiagTask
     /// @cond
 
     // findes and returns all hooks that start with prefix
-    std::vector<DiagTask::hookEntry_t> privFindHooks( const char * prefix);
+    diagtask_vector privFindHooks( const char * prefix);
 
     // returns true if a special function was executed (help,search,...)
     // input should hold current inserted character.
