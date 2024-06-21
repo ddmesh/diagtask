@@ -170,6 +170,7 @@ class DiagTask
     #endif
 
     diagtask_vector mHooks;
+    diagtask_vector mFilterredHooks;
 
     unsigned int mFeatures;
 
@@ -312,8 +313,8 @@ class DiagTask
 
     /// @cond
 
-    // findes and returns all hooks that start with prefix
-    diagtask_vector privFindHooks( const char * prefix);
+    // findes and returns all hooks that start with current value of mCurrentValidInput[]
+    void privFilterHooks();
 
     // returns true if a special function was executed (help,search,...)
     // input should hold current inserted character.

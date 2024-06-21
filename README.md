@@ -1,6 +1,6 @@
 # Diagtask
 
-**Version**: 1.0.0<br/>
+**Version**: 1.1<br/>
 **Author**: Stephan Enderlein<br/>
 **License**: BSD-3-Clause
 

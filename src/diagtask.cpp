@@ -115,13 +115,10 @@ void DiagTask::process(void)
 
     // add new input to mCurrentValidInput
     auto len = strlen(mCurrentValidInput);
-    if( len == DIAGTASK_MAX_HOOK_INPUT_LEN) //full?
+    if( len >= DIAGTASK_MAX_HOOK_INPUT_LEN) //full?
     { mCurrentValidInput[0] = '\0';
-      len = 0;
       break;
     }
-
-  //printf("%d, [%s]\n", len , mCurrentValidInput);
 
     // special characters are only valid, if those are the first character.
     // if a valid hook is recognized but this hook uses such characters somewhere, those
@@ -129,31 +126,40 @@ void DiagTask::process(void)
     if(mCurrentValidInput[0] == '\0' && privCheckAndProcessSpecialChars(c))
     { break; }
 
+    // do not store '\t'
+    if(c != SPECIAL_KEYWORD_TAB)
+    {
+      mCurrentValidInput[len] = c;
+      mCurrentValidInput[len+1] = '\0';
+    }
+
+// printf("%d, [%s]\n", len , mCurrentValidInput);
+
+    // filter hooks used by processTabCompletion() and below
+    privFilterHooks();
+// printf("filterred: %d\n", mFilterredHooks.size());
+
     // if special character '\t' was pressed, do not add it to input buffer or process it futher
     if(processTabCompetion(c))
     { break; }
 
-    mCurrentValidInput[len] = c;
-    mCurrentValidInput[len+1] = '\0';
-
-    // if we still have user input, try to call hook
-    diagtask_vector filterredHooks = privFindHooks(mCurrentValidInput);
-    
     // no hook found
-    if(filterredHooks.size() == 0)
+    if(mFilterredHooks.size() == 0)
     {
       // reset input; c did not select a hook
       mCurrentValidInput[0] = '\0';
       break;
     }
     // found hook with at least correct length (could be a wildcard hook)
-    else if(filterredHooks.size() == 1
+    else
+    {
+      if(mFilterredHooks.size() == 1
               // ensure that we got the complete hook length. avoid calling hook if only one hook
               // exisits that starts with current input. But hook can be longer because of wildcard
-              && strlen(mCurrentValidInput) >= strlen(filterredHooks[0].name) )
+              && strlen(mCurrentValidInput) >= strlen(mFilterredHooks[0].name) )
     {
       // check for wildcard hook
-      if(strchr(filterredHooks[0].name, SPECIAL_KEYWORD_WILDCARD))
+      if(strchr(mFilterredHooks[0].name, SPECIAL_KEYWORD_WILDCARD))
       {
         // if we get '\n' then stop and execute hook
         if(    mCurrentValidInput[len] == '\n' )
@@ -164,9 +170,9 @@ void DiagTask::process(void)
 
           mCurrentValidInput[len] = '\0'; // remove '\n'
           // find wildcard position at which the user argument starts
-          unsigned int argIdx = strchr(filterredHooks[0].name, SPECIAL_KEYWORD_WILDCARD)
-                            - filterredHooks[0].name;
-          filterredHooks[0].hook(&mCurrentValidInput[argIdx]);
+            unsigned int argIdx = strchr(mFilterredHooks[0].name, SPECIAL_KEYWORD_WILDCARD)
+                            - mFilterredHooks[0].name;
+            mFilterredHooks[0].hook(&mCurrentValidInput[argIdx]);
           mCurrentValidInput[0] = '\0'; // reset input
         }
       }
@@ -175,17 +181,16 @@ void DiagTask::process(void)
 #if ENABLE_ECHO
         putchar('\n');
 #endif // #if ENABLE_ECHO
-        filterredHooks[0].hook("");
+          mFilterredHooks[0].hook("");
         mCurrentValidInput[0] = '\0'; // reset input
+        }
       }
     }
 
     // character was processed, leave loop
     break;
   } //while (c>0);
-
 }
-
 
 bool DiagTask::registerHook( const char * name, void(*hook)(const char* input)
                            , const char * description)
@@ -266,16 +271,19 @@ bool DiagTask::readString(char * out, uint16_t maxlen, bool echo)
 
 // diagtask.hpp excludes following files explicitly
 /// @cond
-DiagTask::diagtask_vector DiagTask::privFindHooks( const char * prefix)
+void DiagTask::privFilterHooks()
 {
-  diagtask_vector filterredHooks;
   uint16_t lenHook;
   uint16_t lenInput;
   uint16_t lenMin;
   const char *posWildcard;
 
-  lenInput= strlen(prefix);
+  lenInput= strlen(mCurrentValidInput);
 
+  mFilterredHooks.clear();
+
+  if(lenInput > 0)
+  {
   for (auto & h : mHooks)
   {
     //check until end of hookname and ignore wildcards. whildcards are later used to read
@@ -283,14 +291,20 @@ DiagTask::diagtask_vector DiagTask::privFindHooks( const char * prefix)
     //all hooks without wildcards do not have a '\n'
     posWildcard = strchr(h.name, SPECIAL_KEYWORD_WILDCARD);
     lenHook = posWildcard == NULL ? strlen(h.name) : ( posWildcard - h.name );
-    lenMin = std::min(lenHook, lenInput);
+      lenMin = std::min(lenHook, lenInput); // avoid illegal memory access
 
-    if( strncmp(h.name, prefix, lenMin) == 0 )
+      if( strncmp(h.name, mCurrentValidInput, lenMin) == 0
+        && lenInput <= lenHook // if we have two hooks 'aaa' and 'aaaa'  filterred strings would always
+                               // be more than one and no hook is called. Therefore ensure that longest
+                               // hook is called and mCurrentValidInput[] will be reset to accept other
+                               // hooks. Using hooks that start with same characters will anyway lead
+                               // to never call function for hook 'aaa'
+      )
     {
-      filterredHooks.push_back(h);
+        mFilterredHooks.push_back(h);
     }
   }
-  return filterredHooks;
+  }
 }
 
 bool DiagTask::privCheckAndProcessSpecialChars(char input)
@@ -347,11 +361,11 @@ bool DiagTask::processTabCompetion(char input)
       {
       // show all hooks that start with mCurrentValidInput
       // if we only have one hook, then call hook function
-        diagtask_vector filterredHooks = privFindHooks(mCurrentValidInput);
-      if(filterredHooks.size() == 1)
+
+        if(mFilterredHooks.size() == 1)
       {
-        printf("[%s]\n", filterredHooks[0].name);
-        filterredHooks[0].hook("");
+          printf("->%s\n", mFilterredHooks[0].name);
+          mFilterredHooks[0].hook("");
         mCurrentValidInput[0] = '\0'; // reset input
       }
       else
@@ -360,7 +374,7 @@ bool DiagTask::processTabCompetion(char input)
 #if ENABLE_ECHO
         printf("\n");
 #endif // #if ENABLE_ECHO
-          for ( const auto & h: filterredHooks)
+          for ( const auto & h: mFilterredHooks)
         {
           printf("[%s]%-20s\t%s\n", mCurrentValidInput, &h.name[len], h.description);
           }
